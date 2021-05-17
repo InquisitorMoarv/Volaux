@@ -1,0 +1,32 @@
+apply plugin: 'com.android.library'
+
+android {
+    compileSdkVersion 28
+
+    defaultConfig {
+        minSdkVersion 16
+        targetSdkVersion 28
+        versionCode 67
+        versionName "6.7-SNAPSHOT"
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    lintOptions {
+        disable 'MissingTranslation'
+    }
+
+}
+
+dependencies {
+    api 'org.osmdroid:osmdroid-android:6.1.10'
+    implementation 'org.apache.commons:commons-lang3:3.8.1'
+    api 'com.google.code.gson:gson:2.8.6'
+    implementation 'com.squareup.okhttp3:okhttp:4.7.2'
+    implementation 'androidx.core:core:1.2.0'
+    implementation 'com.google.maps.android:maps-utils-ktx:2.4.0'
+}
