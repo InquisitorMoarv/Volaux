@@ -16,7 +16,8 @@
 	<LinearLayout
 		android:layout_width="fill_parent"
 		android:layout_height="wrap_content"
-		android:orientation="horizontal" >
+		android:orientation="horizontal"
+		android:visibility="gone">
         <com.osmnavigator.AutoCompleteOnPreferences
             android:id="@+id/editDeparture"
 			android:hint="@string/my_position"
@@ -25,13 +26,14 @@
             android:layout_gravity="left"
             android:layout_weight="1" 
             android:completionThreshold="1" />
-		<Button
+		<ImageButton
+			style="@style/Widget.AppCompat.Button.Colored"
 			android:id="@+id/buttonSearchDep"
 			android:layout_width="wrap_content"
 			android:layout_height="wrap_content"
 			android:layout_gravity="right"
 			android:layout_weight="0"
-			android:text="@string/search" />
+			android:src="@drawable/ic_search" />
 	</LinearLayout>
 
 	<LinearLayout
@@ -40,21 +42,45 @@
 		android:orientation="horizontal" >
         <com.osmnavigator.AutoCompleteOnPreferences
             android:id="@+id/editDestination"
-			android:hint="@string/destination"
+			android:hint="Straße, Hausnummer, Ort"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="left"
             android:layout_weight="1" 
             android:completionThreshold="1" />
-		<Button
-			android:id="@+id/buttonSearchDest"
-			android:layout_width="wrap_content"
-			android:layout_height="wrap_content"
-			android:layout_gravity="right"
-			android:layout_weight="0"
-			android:text="@string/search" />
 	</LinearLayout>
-	<LinearLayout
+
+
+
+		<LinearLayout
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:gravity="center">
+			<ImageButton
+				style="@style/Widget.AppCompat.Button.Colored"
+				android:id="@+id/buttonSpeak"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:layout_gravity="right"
+				android:layout_weight="0.3"
+				android:src="@drawable/ic_mic"
+				/>
+			<ImageButton
+				style="@style/Widget.AppCompat.Button.Colored"
+				android:id="@+id/buttonSearchDest"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:layout_gravity="right"
+				android:layout_weight="0.3"
+				android:src="@drawable/ic_search" />
+			<ImageButton
+				style="@style/Widget.AppCompat.Button.Colored"
+				android:id="@+id/buttonMenu"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:src="@drawable/ic_menu"/>
+		</LinearLayout>
+		<LinearLayout
         android:layout_width="fill_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
@@ -77,12 +103,30 @@
 			/>
 	</LinearLayout>
 	</LinearLayout>
+<LinearLayout
+	android:layout_width="match_parent"
+	android:layout_height="wrap_content"
+	android:gravity="center"
+	android:background="#FFFF00"
+	>
 
+	<TextView
+		android:id="@+id/navWarning"
+		android:layout_width="wrap_content"
+		android:layout_height="wrap_content"
+		android:background="#FFFF00"
+		android:text="ACHTUNG!! EVENTUELL NICHT ROLLSTUHL GERECHT"
+		android:gravity="center"
+		android:visibility="gone"
+
+		/>
+</LinearLayout>
 	<LinearLayout
 		android:id="@+id/expander"
 		android:layout_width="fill_parent"
 		android:layout_height="wrap_content"
-		android:orientation="horizontal">
+		android:orientation="horizontal"
+		android:visibility="gone">
 		<TextView
 			android:id="@+id/routeInfo"
 			android:layout_width="wrap_content"
@@ -126,13 +170,7 @@
 			android:layout_alignParentRight="true"
 			android:background="@drawable/btn_tracking_off"
 			android:visibility="gone"/>-Zentriert button -->
-		<Button
-			android:id="@+id/buttonMenu"
-			android:layout_width="wrap_content"
-			android:layout_height="wrap_content"
-			android:layout_alignParentLeft="true"
-			android:layout_alignParentBottom="true"
-			android:background="@drawable/btn_menu"/>
+
 		<Button
 			android:id="@+id/buttonFriends"
 			android:layout_width="wrap_content"
@@ -147,7 +185,7 @@
 			android:layout_width="wrap_content"
 			android:layout_height="wrap_content"
 			android:layout_alignParentRight="true"
-			android:src="@drawable/btn_tracking_off"
+			android:src="@drawable/ic_gps_not_fixed"
 			android:layout_alignParentBottom="false"
 			android:layout_above="@+id/LL"
 			android:layout_margin="16dp" />
@@ -156,6 +194,7 @@
 
 
 		<LinearLayout
+
 			android:id="@+id/LL"
 			android:layout_width="match_parent"
 			android:layout_height="wrap_content"

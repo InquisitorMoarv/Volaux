@@ -25,6 +25,7 @@ import android.location.Address;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
+import android.media.Image;
 import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
@@ -34,6 +35,8 @@ import androidx.core.content.ContextCompat;
 import androidx.core.content.res.ResourcesCompat;
 import androidx.core.graphics.drawable.DrawableCompat;
 
+import android.speech.RecognizerIntent;
+import android.speech.tts.TextToSpeech;
 import android.text.InputType;
 import android.util.Log;
 import android.view.ContextMenu;
@@ -49,6 +52,7 @@ import android.widget.ArrayAdapter;
 import android.widget.AutoCompleteTextView;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -129,7 +133,7 @@ import java.util.Stack;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
- import google.maps.geometry.encoding;
+// import google.maps.geometry.encoding;
 
 /**
  * Simple and general-purpose map/navigation Android application, including a KML viewer and editor.
@@ -196,8 +200,14 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 	static String geonamesAccount;
 	static String mapzenApiKey;
 
-	public int navIndex = 0;
+	public int navIndex = 1;
+	public boolean navInProgress = false;
 
+	public TextToSpeech mTTS;
+	public boolean mTTSSetup = false;
+
+	private static final int REQUEST_CODE_SPEECH_INPUT = 1000;
+	public boolean notWheelchair = false;
 
 	@Override public void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
@@ -325,7 +335,7 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 		AutoCompleteOnPreferences departureText = (AutoCompleteOnPreferences) findViewById(R.id.editDeparture);
 		departureText.setPrefKeys(SHARED_PREFS_APPKEY, PREF_LOCATIONS_KEY);
 
-		Button searchDepButton = (Button)findViewById(R.id.buttonSearchDep);
+		ImageButton searchDepButton = (ImageButton)findViewById(R.id.buttonSearchDep);
 		searchDepButton.setOnClickListener(new View.OnClickListener() {
 			public void onClick(View view) {
 				handleSearchButton(START_INDEX, R.id.editDeparture);
@@ -335,10 +345,11 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 		AutoCompleteOnPreferences destinationText = (AutoCompleteOnPreferences) findViewById(R.id.editDestination);
 		destinationText.setPrefKeys(SHARED_PREFS_APPKEY, PREF_LOCATIONS_KEY);
 
-		Button searchDestButton = (Button)findViewById(R.id.buttonSearchDest);
+		ImageButton searchDestButton = findViewById(R.id.buttonSearchDest);
 		searchDestButton.setOnClickListener(new View.OnClickListener() {
 			public void onClick(View view) {
 				handleSearchButton(DEST_INDEX, R.id.editDestination);
+
 			}
 		});
 
@@ -431,7 +442,7 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 
 		checkPermissions();
 
-		Button menuButton = (Button) findViewById(R.id.buttonMenu);
+		ImageButton menuButton = (ImageButton) findViewById(R.id.buttonMenu);
 		menuButton.setOnClickListener(new View.OnClickListener() {
 			@Override
 			public void onClick(View v) {
@@ -461,8 +472,7 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 		endNavigation.setOnClickListener(new View.OnClickListener() {
 			@Override
 			public void onClick(View view) {
-				findViewById(R.id.navbar_navigationNavbar).setVisibility(View.GONE);
-				findViewById(R.id.navbar_infoNavbar).setVisibility(View.VISIBLE);
+				endNavigation();
 			}
 		});
 
@@ -470,16 +480,19 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 		startNavigation.setOnClickListener(new View.OnClickListener() {
 			@Override
 			public void onClick(View view) {
-				findViewById(R.id.navbar_navigationNavbar).setVisibility(View.VISIBLE);
-				findViewById(R.id.navbar_infoNavbar).setVisibility(View.GONE);
-				Log.w("POSITION",String.valueOf(myLocationOverlay.getLocation()));
-				navIndex =0;
-				startTurnByTurnNavigation();
-
-
-				//TODO CODE FÜR DIE NAVIGATION _______________________________________________________________________--
+				startNavigation();
 			}
 		});
+
+		ImageButton speakButton = findViewById(R.id.buttonSpeak);
+		speakButton.setOnClickListener(new View.OnClickListener() {
+			@Override
+			public void onClick(View view) {
+				listen();
+			}
+		});
+
+
 		//Check if Route is present and deactivate Route button if so
 		if (mRoads == null  || mRoads[mSelectedRoad].mNodes.size()<=0 ) {
 			routeNavigation1.setEnabled(false);
@@ -487,6 +500,94 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 			startNavigation.setEnabled(false);
 			//findViewById(R.id.LL).setVisibility(View.GONE);
 		}
+
+		mTTS = new TextToSpeech(this, new TextToSpeech.OnInitListener() {
+			@Override
+			public void onInit(int i) {
+				if (i == TextToSpeech.SUCCESS){
+					int result = mTTS.setLanguage(Locale.GERMAN);
+
+					if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED){
+						Log.e("TextToSpeech","Language not supported");
+						mTTSSetup = false;
+					}else {
+						mTTSSetup = true;
+					}
+
+				}else {
+					Log.e("TextToSpeech","Initializsation failed");
+					mTTSSetup = false;
+				}
+			}
+		});
+
+
+	}
+
+	// Polyline API https://osmdroid.github.io/osmdroid/javadocAll/org/osmdroid/views/overlay/Polyline.html
+
+
+	public  void  listen(){
+		Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+		intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+		intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE,Locale.getDefault());
+		intent.putExtra(RecognizerIntent.EXTRA_PROMPT,"Straße, Hausnummer, Postleitzahl, Ort");
+
+		try{
+			startActivityForResult(intent,REQUEST_CODE_SPEECH_INPUT);
+		}catch (Exception e){
+			Toast.makeText(this,""+e.getMessage(), Toast.LENGTH_SHORT).show();
+		}
+	}
+
+
+
+
+	public void startNavigation(){
+		findViewById(R.id.search_panel).setVisibility(View.GONE);
+		navInProgress = true;
+		navIndex =1;
+		findViewById(R.id.navbar_navigationNavbar).setVisibility(View.VISIBLE);
+		findViewById(R.id.navbar_infoNavbar).setVisibility(View.GONE);
+		Log.w("POSITION",String.valueOf(myLocationOverlay.getLocation()));
+		startTurnByTurnNavigation();
+
+	}
+	public void endNavigation(){
+		navInProgress = false;
+		navIndex =1;
+		findViewById(R.id.navbar_navigationNavbar).setVisibility(View.GONE);
+		findViewById(R.id.navbar_infoNavbar).setVisibility(View.VISIBLE);
+		findViewById(R.id.search_panel).setVisibility(View.VISIBLE);
+	}
+
+	public void speakNavigation(String instruction, double userEntryDistance){
+		//mTTS.setPitch();
+		//mTTS.setSpeechRate();
+		if(mTTSSetup){
+
+			userEntryDistance = userEntryDistance/1000;
+			String result;
+			if (userEntryDistance >= 100.0) {
+				result = "In "+(int)userEntryDistance+" Kilometer ";
+			} else if (userEntryDistance >= 1.0) {
+				result = "In circa "+(int)userEntryDistance+" Kilometer ";
+			} else {
+				result = "In "+(int) (userEntryDistance*1000)+" Metern ";
+			}
+			result = result+instruction;
+			mTTS.speak(result,TextToSpeech.QUEUE_FLUSH,null);
+		}
+
+	}
+
+	@Override
+	protected void onDestroy() {
+		if(mTTS!=null){
+			mTTS.stop();
+			mTTS.shutdown();
+		}
+		super.onDestroy();
 	}
 
 	public void startTurnByTurnNavigation(){
@@ -501,35 +602,69 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 		loc2.setLongitude(userLocation.getLongitude());
 		float pointDistance = loc1.distanceTo(loc2);
 
-		TextView nDistance = (TextView)findViewById(R.id.navUserDistance);
+		calcAndDisplayNodeLength(pointDistance);
+
 		TextView nInstructions = (TextView)findViewById(R.id.navInstructions);
-
-		nDistance.setText("In "+pointDistance);
-
 		String instructions = (entry.mInstructions==null ? "" : entry.mInstructions);
 		nInstructions.setText(instructions);
+		speakNavigation(instructions,pointDistance);
 
-
-		//int polylineLength = google.maps.geometry.spherical.computeLength(polyline.getPath());
-
-		int i = mRoads[mSelectedRoad].mNodes.size();
-		//GeoPoint userLocation = myLocationOverlay.getLocation();
-		int currentNodeId = getIndexOfBubbledMarker(mRoadNodeMarkers.getItems());
 
 	}
 
 	public void calcDistanceNav(){
 		RoadNode entry = mRoads[mSelectedRoad].mNodes.get(navIndex);
+		RoadNode nextEntry = null;
+		if((navIndex+1)<mRoads[mSelectedRoad].mNodes.size()){
+			nextEntry = mRoads[mSelectedRoad].mNodes.get(navIndex+1);
+			}
+
 		GeoPoint userLocation = myLocationOverlay.getLocation();
+
 		Location loc1 = new Location("");
 		loc1.setLatitude(entry.mLocation.getLatitude());
 		loc1.setLongitude(entry.mLocation.getLongitude());
 		Location loc2 = new Location("");
 		loc2.setLatitude(userLocation.getLatitude());
 		loc2.setLongitude(userLocation.getLongitude());
-		float pointDistance = loc1.distanceTo(loc2);
+		float userEntryDistance = loc1.distanceTo(loc2);
 
-		if(pointDistance<=5){
+		if(nextEntry!=null){
+			if(userEntryDistance<=5) {
+				navIndex++;
+				startTurnByTurnNavigation();
+			}else{
+				Location loc3 = new Location("");
+				loc3.setLatitude(nextEntry.mLocation.getLatitude());
+				loc3.setLongitude(nextEntry.mLocation.getLongitude());
+				float userNextEntryDistance = loc2.distanceTo(loc3);
+				float entryToNextEntryDistance = loc1.distanceTo(loc3);
+				if(userNextEntryDistance<entryToNextEntryDistance){
+					navIndex++;
+					startTurnByTurnNavigation();
+				}else{
+					calcAndDisplayNodeLength(userEntryDistance);
+				}
+			}
+		}else {
+			if(userEntryDistance<=5) {
+				if(mTTSSetup){
+					mTTS.speak("Sie haben ihr Ziel erreicht",TextToSpeech.QUEUE_FLUSH,null);
+				}
+				endNavigation();
+				//ENDE
+				//Noch irwie eine weiter nachhicht oder sooooooo?
+				//findViewById(R.id.navbar_navigationNavbar).setVisibility(View.GONE);
+				//findViewById(R.id.navbar_infoNavbar).setVisibility(View.VISIBLE);
+			}else{
+				calcAndDisplayNodeLength(userEntryDistance);
+			}
+		}
+
+
+
+/*
+		if(userEntryDistance<=5){
 			if(navIndex==mRoads[mSelectedRoad].mNodes.size()){
 				//ENDE
 			}else {
@@ -537,11 +672,38 @@ public class MapActivity extends Activity implements MapEventsReceiver, Location
 				startTurnByTurnNavigation();
 			}
 		}else{
-			TextView nDistance = (TextView)findViewById(R.id.navUserDistance);
-			nDistance.setText("In "+pointDistance);
-		}
+			userEntryDistance = userEntryDistance/1000;
+			String result;
+			if (userEntryDistance >= 100.0) {
+				result = getString(org.osmdroid.bonuspack.R.string.osmbonuspack_format_distance_kilometers, (int) (userEntryDistance));
+			} else if (userEntryDistance >= 1.0) {
+				result = getString(org.osmdroid.bonuspack.R.string.osmbonuspack_format_distance_kilometers, Math.round(userEntryDistance * 10) / 10.0);
+			} else {
+				result = getString(org.osmdroid.bonuspack.R.string.osmbonuspack_format_distance_meters, (int) (userEntryDistance * 1000));
+			}
 
+			TextView nDistance = (TextView)findViewById(R.id.navUserDistance);
+			nDistance.setText("In "+result);
+		}
+*/
 	}
+
+
+
+public void calcAndDisplayNodeLength(double userEntryDistance){
+	userEntryDistance = userEntryDistance/1000;
+	String result;
+	if (userEntryDistance >= 100.0) {
+		result = getString(org.osmdroid.bonuspack.R.string.osmbonuspack_format_distance_kilometers, (int) (userEntryDistance));
+	} else if (userEntryDistance >= 1.0) {
+		result = getString(org.osmdroid.bonuspack.R.string.osmbonuspack_format_distance_kilometers, Math.round(userEntryDistance * 10) / 10.0);
+	} else {
+		result = getString(org.osmdroid.bonuspack.R.string.osmbonuspack_format_distance_meters, (int) (userEntryDistance * 1000));
+	}
+
+	TextView nDistance = (TextView)findViewById(R.id.navUserDistance);
+	nDistance.setText("In "+result);
+}
 
 
 public void openRouteInfo(){
@@ -653,12 +815,26 @@ public void openRouteInfo(){
 		savePrefs();
 	}
 
+
+
+
+
+
 	@Override protected void onActivityResult (int requestCode, int resultCode, Intent intent) {
 		switch (requestCode) {
 			case FriendsManager.START_SHARING_REQUEST:
 			case FriendsManager.FRIENDS_REQUEST:
 				mFriendsManager.onActivityResult(requestCode, resultCode, intent);
 				break;
+			case REQUEST_CODE_SPEECH_INPUT: {
+				if (resultCode == RESULT_OK && null != intent) {
+					ArrayList<String> result = intent.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
+					AutoCompleteOnPreferences destinationText = (AutoCompleteOnPreferences) findViewById(R.id.editDestination);
+					destinationText.setText(result.get(0));
+					handleSearchButton(DEST_INDEX, R.id.editDestination);
+				}
+				break;
+			}
 			case ROUTE_REQUEST:
 				if (resultCode == RESULT_OK) {
 					int nodeId = intent.getIntExtra("NODE_ID", 0);
@@ -737,14 +913,17 @@ public void openRouteInfo(){
 
     void updateUIWithTrackingMode(){
 		if (mTrackingMode){
-			mTrackingModeButton.setBackgroundResource(R.drawable.btn_tracking_on);
+			mTrackingModeButton.setImageResource(R.drawable.ic_gps_fixed);
+
+			//mTrackingModeButton.setBackgroundResource(R.drawable.btn_tracking_on);
 			if (myLocationOverlay.isEnabled()&& myLocationOverlay.getLocation() != null){
 				map.getController().animateTo(myLocationOverlay.getLocation());
 			}
 			map.setMapOrientation(-mAzimuthAngleSpeed);
 			mTrackingModeButton.setKeepScreenOn(true);
 		} else {
-			mTrackingModeButton.setBackgroundResource(R.drawable.btn_tracking_off);
+			mTrackingModeButton.setImageResource(R.drawable.ic_gps_not_fixed);
+			//mTrackingModeButton.setBackgroundResource(R.drawable.btn_tracking_off);
 			map.setMapOrientation(0.0f);
 			mTrackingModeButton.setKeepScreenOn(false);
 		}
@@ -1048,8 +1227,10 @@ public void openRouteInfo(){
 		textView.setText(mRoads[roadIndex].getLengthDurationText(this, -1));
 		for (int i=0; i<mRoadOverlays.length; i++){
 			Paint p = mRoadOverlays[i].getPaint();
-			if (i == roadIndex)
-				p.setColor(0x800000FF); //blue
+			if (i == roadIndex){
+				//p.setColor(0x800000FF); //blue
+				p.setColor(Color.RED);
+				p.setStrokeWidth(20);}
 			else
 				p.setColor(0x90666666); //grey
 		}
@@ -1070,7 +1251,15 @@ public void openRouteInfo(){
 
 	//Wenn neue Roads rein kommen.
 	void updateUIWithRoads(Road[] roads){
-    	navIndex=0;
+
+    	endNavigation();
+
+    	if(notWheelchair){
+			findViewById(R.id.navWarning).setVisibility(View.VISIBLE);
+		}else {
+			findViewById(R.id.navWarning).setVisibility(View.GONE);
+		}
+
 		mRoadNodeMarkers.getItems().clear();
 		TextView textView = (TextView)findViewById(R.id.routeInfo);
 		textView.setText("");
@@ -1082,18 +1271,19 @@ public void openRouteInfo(){
 		}
 		if (roads == null)
 			return;
-		if (roads[0].mStatus == Road.STATUS_TECHNICAL_ISSUE)
+		if (roads[0].mStatus == Road.STATUS_TECHNICAL_ISSUE) {
 			Toast.makeText(map.getContext(), "Technical issue when getting the route", Toast.LENGTH_SHORT).show();
-		else if (roads[0].mStatus > Road.STATUS_TECHNICAL_ISSUE) //functional issues
+		}else if (roads[0].mStatus > Road.STATUS_TECHNICAL_ISSUE) //functional issues
 			Toast.makeText(map.getContext(), "No possible route here", Toast.LENGTH_SHORT).show();
 		mRoadOverlays = new Polyline[roads.length];
 		for (int i=0; i<roads.length; i++) {
 			Polyline roadPolyline = RoadManager.buildRoadOverlay(roads[i]);
 			mRoadOverlays[i] = roadPolyline;
+			/*
 			if (mWhichRouteProvider == GRAPHHOPPER_BICYCLE || mWhichRouteProvider == GRAPHHOPPER_PEDESTRIAN) {
 				Paint p = roadPolyline.getPaint();
 				p.setPathEffect(new DashPathEffect(new float[]{10, 5}, 0));
-			}
+			}*/
 			String routeDesc = roads[i].getLengthDurationText(this, -1);
 			roadPolyline.setTitle(getString(R.string.route) + " - " + routeDesc);
 			roadPolyline.setInfoWindow(new BasicInfoWindow(org.osmdroid.bonuspack.R.layout.bonuspack_bubble, map));
@@ -1165,6 +1355,16 @@ public void openRouteInfo(){
 				break;
 				default:
 				return null;
+			}
+
+			Road[] roads = roadManager.getRoads(waypoints);
+			if(roads[0].mStatus == Road.STATUS_TECHNICAL_ISSUE&& mWhichRouteProvider == ORS){
+				roadManager = new GraphHopperRoadManager(graphHopperApiKey, false);
+				roadManager.addRequestOption("locale="+locale.getLanguage());
+				roadManager.addRequestOption("vehicle=foot");
+				notWheelchair = true;
+			}else {
+				notWheelchair = false;
 			}
 			return roadManager.getRoads(waypoints);
 		}
@@ -1590,7 +1790,7 @@ public void openRouteInfo(){
 
 	@Override public boolean longPressHelper(GeoPoint p) {
 		mClickedGeoPoint = p;
-		Button searchButton = (Button)findViewById(R.id.buttonSearchDest);
+		ImageButton searchButton = (ImageButton)findViewById(R.id.buttonSearchDest);
 		openContextMenu(searchButton);
 		//menu is hooked on the "Search Destination" button, as it must be hooked somewhere.
 		return true;
@@ -1918,7 +2118,7 @@ public void openRouteInfo(){
 		Log.w("POSITION",String.valueOf(myLocationOverlay.getLocation()));
 		//TODO NICE METHODE KANN HIER REIN----------------------------------------------------
 
-		if (mRoads != null && mRoads[mSelectedRoad].mNodes.size()>0) {
+		if (mRoads != null && mRoads[mSelectedRoad].mNodes.size()>0&&navInProgress) {
 			calcDistanceNav();
 		}
 

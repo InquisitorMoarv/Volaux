@@ -39,6 +39,7 @@
         android:layout_width="match_parent"
         android:layout_alignParentBottom="true">
         <Button
+            style="@style/Widget.AppCompat.Button.Colored"
             android:id="@+id/navStartButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -50,6 +51,7 @@
             android:layout_marginRight="15dp">
         </Button>
         <Button
+            style="@style/Widget.AppCompat.Button.Colored"
             android:id="@+id/navRouteInfoButton1"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
